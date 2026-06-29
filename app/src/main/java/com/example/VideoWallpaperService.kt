@@ -1,7 +1,9 @@
 package com.example
 
+import android.app.WallpaperManager
 import android.content.Context
 import android.media.MediaPlayer
+import android.os.Build
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import android.util.Log
@@ -55,10 +57,39 @@ class VideoWallpaperService : WallpaperService() {
             super.onSurfaceChanged(holder, format, width, height)
         }
 
+        private fun getEngineWallpaperFlags(): Int {
+            if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+                try {
+                    return getWallpaperFlags()
+                } catch (e: Throwable) {
+                    // Fallback to reflection below
+                }
+            }
+            // Fallback to reflection on private mWhich field (available since Android 8.0 / API 26)
+            try {
+                val field = WallpaperService.Engine::class.java.getDeclaredField("mWhich")
+                field.isAccessible = true
+                return field.get(this) as Int
+            } catch (e: Throwable) {
+                // If reflection fails, return FLAG_SYSTEM as standard default
+            }
+            return WallpaperManager.FLAG_SYSTEM
+        }
+
         private fun playVideo() {
-            val videoFile = File(filesDir, "walhero_active_video.mp4")
+            val flags = getEngineWallpaperFlags()
+            val isLockScreen = (flags and WallpaperManager.FLAG_LOCK) != 0
+
+            val videoFile = if (isLockScreen) {
+                val lockFile = File(filesDir, "walhero_lock_video.mp4")
+                if (lockFile.exists()) lockFile else File(filesDir, "walhero_active_video.mp4")
+            } else {
+                val homeFile = File(filesDir, "walhero_home_video.mp4")
+                if (homeFile.exists()) homeFile else File(filesDir, "walhero_active_video.mp4")
+            }
+
             if (!videoFile.exists()) {
-                Log.w("VideoWallpaperService", "Active video file does not exist.")
+                Log.w("VideoWallpaperService", "No active video file exists for targets (isLockScreen=$isLockScreen).")
                 return
             }
 
