@@ -25,11 +25,11 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/walhero-release.jks"
       storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "android"
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "android"
+      storePassword = System.getenv("STORE_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "walheropassword"
+      keyAlias = System.getenv("KEY_ALIAS")?.takeIf { it.isNotEmpty() } ?: "walhero"
+      keyPassword = System.getenv("KEY_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "walheropassword"
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -129,3 +129,78 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+tasks.register("generateReleaseKeystore") {
+  doLast {
+    val keystoreFile = file("${rootDir}/walhero-release.jks")
+    if (!keystoreFile.exists()) {
+      println("Generating release keystore at: ${keystoreFile.absolutePath}")
+      val process = ProcessBuilder(
+        "keytool", "-genkey", "-v",
+        "-keystore", keystoreFile.absolutePath,
+        "-storepass", "walheropassword",
+        "-alias", "walhero",
+        "-keypass", "walheropassword",
+        "-keyalg", "RSA",
+        "-keysize", "2048",
+        "-validity", "10000",
+        "-dname", "CN=Walhero, O=Walhero, C=US"
+      ).redirectErrorStream(true).start()
+      val output = process.inputStream.bufferedReader().use { it.readText() }
+      val exitCode = process.waitFor()
+      println("Keytool Output:\n$output")
+      println("Keytool Exit Code: $exitCode")
+    } else {
+      println("Keystore already exists at: ${keystoreFile.absolutePath}")
+    }
+  }
+}
+
+tasks.register("printKeystoreDetails") {
+  doLast {
+    val keystoreFile = file("${rootDir}/walhero-release.jks")
+    if (keystoreFile.exists()) {
+      println("--- Keystore Details ---")
+      println("Keystore Path: ${keystoreFile.absolutePath}")
+      val process = ProcessBuilder(
+        "keytool", "-list", "-v",
+        "-keystore", keystoreFile.absolutePath,
+        "-storepass", "walheropassword",
+        "-alias", "walhero"
+      ).redirectErrorStream(true).start()
+      val output = process.inputStream.bufferedReader().use { it.readText() }
+      val exitCode = process.waitFor()
+      println("Keytool Output:\n$output")
+      println("Keytool Exit Code: $exitCode")
+    } else {
+      println("Error: Keystore file does not exist at ${keystoreFile.absolutePath}")
+    }
+  }
+}
+
+tasks.register("copyReleaseApk") {
+  doLast {
+    val releaseApk = file("build/outputs/apk/release/app-release.apk")
+    if (releaseApk.exists()) {
+      val destFile = file("${rootDir}/app-release-signed.apk")
+      releaseApk.copyTo(destFile, overwrite = true)
+      println("Copied signed release APK to: ${destFile.absolutePath}")
+    } else {
+      // Let's search for any APK in build/outputs/ to make sure we find it
+      val outputsDir = file("build/outputs")
+      if (outputsDir.exists()) {
+        outputsDir.walkTopDown().forEach { f ->
+          if (f.extension == "apk") {
+            println("Found APK at: ${f.absolutePath}")
+            val destFile = file("${rootDir}/app-release-signed.apk")
+            f.copyTo(destFile, overwrite = true)
+            println("Copied ${f.name} to: ${destFile.absolutePath}")
+            return@doLast
+          }
+        }
+      }
+      println("Error: No APK found in build/outputs/")
+    }
+  }
+}
+
