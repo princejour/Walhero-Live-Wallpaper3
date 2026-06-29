@@ -34,10 +34,10 @@ jobs:
       run: |
         if [ "${{ secrets.RELEASE_KEYSTORE }}" != "" ]; then
           echo "Decoding custom Release Keystore from secrets..."
-          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > my-upload-key.jks
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > walhero-release.jks
         else
           echo "No release secrets found, generating an authentic production keystore on-the-fly..."
-          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias upload -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Upload,O=Android,C=US"
+          keytool -genkey -v -keystore walhero-release.jks -storepass walheropassword -alias walhero -keypass walheropassword -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Walhero,O=Walhero,C=US"
         fi
 
     - name: Build with Gradle
@@ -45,7 +45,8 @@ jobs:
       env:
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEYSTORE_PATH: ${{ github.workspace }}/walhero-release.jks
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
