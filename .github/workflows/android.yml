@@ -45,4 +45,4 @@ jobs:
       env:
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        KEYSTORE_PATH: my-upload-key.jks
+        KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
