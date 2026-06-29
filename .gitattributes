@@ -1,0 +1,6 @@
+# Treat all jar files as binary to avoid corruption on checkout
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
