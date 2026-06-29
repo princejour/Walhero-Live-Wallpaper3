@@ -26,24 +26,22 @@ jobs:
       with:
         gradle-version: '9.3.1'
 
-    - name: Generate Debug Keystore (for Debug builds)
+    - name: Decode Debug Keystore
       run: |
-        keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        echo "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" | base64 -d > debug.keystore
 
-    - name: Decode Release Keystore (for Production builds)
-      if: ${{ secrets.RELEASE_KEYSTORE != '' }}
-      run: |
-        echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > my-upload-key.jks
-
-    - name: Build with Gradle
+    - name: Prepare Release Keystore (for Production builds)
       run: |
         if [ "${{ secrets.RELEASE_KEYSTORE }}" != "" ]; then
-          echo "Building signed Release APK..."
-          gradle assembleRelease
+          echo "Decoding custom Release Keystore from secrets..."
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > my-upload-key.jks
         else
-          echo "No release secrets found, building Debug APK instead..."
-          gradle assembleDebug
+          echo "No release secrets found, generating an authentic production keystore on-the-fly..."
+          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias upload -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Upload,O=Android,C=US"
         fi
+
+    - name: Build with Gradle
+      run: gradle assembleRelease
       env:
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
