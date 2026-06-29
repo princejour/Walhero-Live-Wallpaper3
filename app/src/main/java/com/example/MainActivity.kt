@@ -48,6 +48,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -65,6 +70,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         viewModel.initPrefs(applicationContext)
+        MobileAds.initialize(this)
 
         setContent {
             MyApplicationTheme {
@@ -204,137 +210,147 @@ fun MainScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp)
-    ) {
-        // App Header Row (Image 3 style)
-        Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 80.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.img_walhero_icon),
-                contentDescription = "Walhero App Logo",
-                contentScale = ContentScale.Crop,
+            // App Header Row (Image 3 style)
+            Row(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, NeonBlue.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_walhero_icon),
+                    contentDescription = "Walhero App Logo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, NeonBlue.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Walhero",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Live Wallpaper",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NeonCyan,
+                        modifier = Modifier.offset(y = (-4).dp)
+                    )
+                    Text(
+                        text = "Premium Video Wallpaper Experience",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Gear icon for settings
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier
+                        .testTag("settings_button")
+                        .size(48.dp)
+                        .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Status Card
+            StatusCard(videoState = videoState)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Button: Choose Video
+            GlowingActionButton(
+                text = "Choose Video",
+                icon = Icons.Default.Add,
+                glowColor = NeonBlue,
+                onClick = {
+                    pickerLauncher.launch(arrayOf("video/*"))
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("choose_video_button")
             )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Walhero",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "Live Wallpaper",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NeonCyan,
-                    modifier = Modifier.offset(y = (-4).dp)
-                )
-                Text(
-                    text = "Premium Video Wallpaper Experience",
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+            // Sound Switch Card
+            SoundSwitchCard(
+                soundEnabled = soundEnabled,
+                onToggle = { enabled -> viewModel.setSoundEnabled(context, enabled) }
+            )
 
-            // Gear icon for settings
-            IconButton(
-                onClick = onNavigateToSettings,
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Button: Apply Live Wallpaper
+            GlowingActionButton(
+                text = "Apply Live Wallpaper",
+                icon = Icons.Default.PlayArrow,
+                glowColor = GlowPurple,
+                onClick = {
+                    if (videoState is VideoState.Ready) {
+                        launchWallpaperChooser(context)
+                    } else {
+                        Toast.makeText(context, "Please choose a video first", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 modifier = Modifier
-                    .testTag("settings_button")
-                    .size(48.dp)
-                    .background(Color.White.copy(alpha = 0.05f), CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White
-                )
-            }
+                    .fillMaxWidth()
+                    .testTag("apply_wallpaper_button")
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Button: Clear Video
+            OutlinedActionCard(
+                text = "Clear Selected Video",
+                icon = Icons.Default.Delete,
+                borderColor = StatusRed.copy(alpha = 0.5f),
+                onClick = {
+                    viewModel.clearVideo(context)
+                    Toast.makeText(context, "Video cleared", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("clear_video_button")
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Info Card explaining wallpaper behaviors (Image 3 style)
+            InfoBehaviorsCard()
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Status Card
-        StatusCard(videoState = videoState)
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Button: Choose Video
-        GlowingActionButton(
-            text = "Choose Video",
-            icon = Icons.Default.Add,
-            glowColor = NeonBlue,
-            onClick = {
-                pickerLauncher.launch(arrayOf("video/*"))
-            },
+        // Fixed Banner Ad at the bottom of Main Screen
+        AdMobBanner(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .background(BackgroundDark)
                 .fillMaxWidth()
-                .testTag("choose_video_button")
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Sound Switch Card
-        SoundSwitchCard(
-            soundEnabled = soundEnabled,
-            onToggle = { enabled -> viewModel.setSoundEnabled(context, enabled) }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Button: Apply Live Wallpaper
-        GlowingActionButton(
-            text = "Apply Live Wallpaper",
-            icon = Icons.Default.PlayArrow,
-            glowColor = GlowPurple,
-            onClick = {
-                if (videoState is VideoState.Ready) {
-                    launchWallpaperChooser(context)
-                } else {
-                    Toast.makeText(context, "Please choose a video first", Toast.LENGTH_SHORT).show()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("apply_wallpaper_button")
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Button: Clear Video
-        OutlinedActionCard(
-            text = "Clear Selected Video",
-            icon = Icons.Default.Delete,
-            borderColor = StatusRed.copy(alpha = 0.5f),
-            onClick = {
-                viewModel.clearVideo(context)
-                Toast.makeText(context, "Video cleared", Toast.LENGTH_SHORT).show()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("clear_video_button")
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        // Info Card explaining wallpaper behaviors (Image 3 style)
-        InfoBehaviorsCard()
     }
 }
 
@@ -885,4 +901,18 @@ private fun launchWallpaperChooser(context: Context) {
             Toast.makeText(context, "Failed to open Live Wallpaper picker.", Toast.LENGTH_LONG).show()
         }
     }
+}
+
+@Composable
+fun AdMobBanner(modifier: Modifier = Modifier) {
+    AndroidView(
+        modifier = modifier.fillMaxWidth(),
+        factory = { context ->
+            AdView(context).apply {
+                setAdSize(AdSize.BANNER)
+                adUnitId = "ca-app-pub-2807969310197931/5118251844"
+                loadAd(AdRequest.Builder().build())
+            }
+        }
+    )
 }
