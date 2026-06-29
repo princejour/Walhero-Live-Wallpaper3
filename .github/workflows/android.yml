@@ -26,8 +26,25 @@ jobs:
       with:
         gradle-version: '9.3.1'
 
-    - name: Decode Debug Keystore
-      run: base64 -d debug.keystore.base64 > debug.keystore
+    - name: Generate Debug Keystore (for Debug builds)
+      run: |
+        keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+    - name: Decode Release Keystore (for Production builds)
+      if: ${{ secrets.RELEASE_KEYSTORE != '' }}
+      run: |
+        echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > my-upload-key.jks
 
     - name: Build with Gradle
-      run: gradle assembleDebug
+      run: |
+        if [ "${{ secrets.RELEASE_KEYSTORE }}" != "" ]; then
+          echo "Building signed Release APK..."
+          gradle assembleRelease
+        else
+          echo "No release secrets found, building Debug APK instead..."
+          gradle assembleDebug
+        fi
+      env:
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        KEYSTORE_PATH: my-upload-key.jks
