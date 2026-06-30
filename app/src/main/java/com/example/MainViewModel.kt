@@ -31,19 +31,22 @@ class MainViewModel : ViewModel() {
         val prefs = context.getSharedPreferences("walhero_prefs", Context.MODE_PRIVATE)
         _soundEnabled.value = prefs.getBoolean("pref_sound_enabled", false)
 
-        val homeFile = File(context.filesDir, "walhero_home_video.mp4")
-        val lockFile = File(context.filesDir, "walhero_lock_video.mp4")
-        val legacyFile = File(context.filesDir, "walhero_active_video.mp4")
-
-        val exists = homeFile.exists() || lockFile.exists() || legacyFile.exists()
-        if (exists) {
-            val savedName = prefs.getString("pref_video_name", "My Video Wallpaper") ?: "My Video Wallpaper"
-            val size = when {
-                homeFile.exists() -> homeFile.length()
-                lockFile.exists() -> lockFile.length()
-                else -> legacyFile.length()
+        val videoFile = File(context.filesDir, "walhero_active_video.mp4")
+        if (!videoFile.exists()) {
+            // Check for legacy target files and migrate to active_video
+            val homeFile = File(context.filesDir, "walhero_home_video.mp4")
+            val lockFile = File(context.filesDir, "walhero_lock_video.mp4")
+            if (homeFile.exists() && homeFile.length() > 0) {
+                homeFile.renameTo(videoFile)
+                if (lockFile.exists()) lockFile.delete()
+            } else if (lockFile.exists() && lockFile.length() > 0) {
+                lockFile.renameTo(videoFile)
             }
-            val sizeStr = getFileSizeString(size)
+        }
+
+        if (videoFile.exists() && videoFile.length() > 0) {
+            val savedName = prefs.getString("pref_video_name", "My Video Wallpaper") ?: "My Video Wallpaper"
+            val sizeStr = getFileSizeString(videoFile.length())
             _videoState.value = VideoState.Ready(savedName, sizeStr)
         } else {
             _videoState.value = VideoState.Idle
@@ -56,39 +59,28 @@ class MainViewModel : ViewModel() {
         prefs.edit().putBoolean("pref_sound_enabled", enabled).apply()
     }
 
-    fun handleSelectedVideo(context: Context, uri: Uri, target: String = "both") {
+    fun handleSelectedVideo(context: Context, uri: Uri) {
         _videoState.value = VideoState.Copying
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val originalName = getFileName(context, uri) ?: "Selected Video"
-                
-                val targets = when (target) {
-                    "home" -> listOf("walhero_home_video.mp4")
-                    "lock" -> listOf("walhero_lock_video.mp4")
-                    else -> listOf("walhero_active_video.mp4") // "both" writes to walhero_active_video.mp4
-                }
+                val destFile = File(context.filesDir, "walhero_active_video.mp4")
 
-                // Copy to each target file
-                for (targetName in targets) {
-                    val destFile = File(context.filesDir, targetName)
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        destFile.outputStream().use { outputStream ->
-                            inputStream.copyTo(outputStream)
-                        }
+                // Copy chosen video directly to walhero_active_video.mp4
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    destFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
                     }
                 }
                 
-                // If they chose specific targets or both, clean up conflicting old files
-                if (target == "both") {
-                    val homeFile = File(context.filesDir, "walhero_home_video.mp4")
-                    if (homeFile.exists()) homeFile.delete()
-                    val lockFile = File(context.filesDir, "walhero_lock_video.mp4")
-                    if (lockFile.exists()) lockFile.delete()
-                }
+                // Clean up any old target files
+                val homeFile = File(context.filesDir, "walhero_home_video.mp4")
+                if (homeFile.exists()) homeFile.delete()
+                val lockFile = File(context.filesDir, "walhero_lock_video.mp4")
+                if (lockFile.exists()) lockFile.delete()
 
-                val primaryFile = File(context.filesDir, targets[0])
-                if (primaryFile.exists() && primaryFile.length() > 0) {
-                    val sizeStr = getFileSizeString(primaryFile.length())
+                if (destFile.exists() && destFile.length() > 0) {
+                    val sizeStr = getFileSizeString(destFile.length())
                     
                     // Save info to SharedPreferences
                     val prefs = context.getSharedPreferences("walhero_prefs", Context.MODE_PRIVATE)
@@ -99,7 +91,7 @@ class MainViewModel : ViewModel() {
 
                     _videoState.value = VideoState.Ready(originalName, sizeStr)
                 } else {
-                    _videoState.value = VideoState.Error("Failed to save video file: file is empty")
+                    _videoState.value = VideoState.Error("Failed to save video file")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -35,8 +35,10 @@ jobs:
         if [ "${{ secrets.RELEASE_KEYSTORE }}" != "" ]; then
           echo "Decoding custom Release Keystore from secrets..."
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > walhero-release.jks
+        elif [ -f "walhero-release.jks" ]; then
+          echo "Using existing walhero-release.jks found in the repository..."
         else
-          echo "No release secrets found, generating an authentic production keystore on-the-fly..."
+          echo "No release secrets or repository keystore found, generating an authentic production keystore on-the-fly..."
           keytool -genkey -v -keystore walhero-release.jks -storepass walheropassword -alias walhero -keypass walheropassword -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Walhero,O=Walhero,C=US"
         fi
 
