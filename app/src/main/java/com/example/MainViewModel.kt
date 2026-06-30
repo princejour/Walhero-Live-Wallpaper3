@@ -65,46 +65,30 @@ class MainViewModel : ViewModel() {
                 val targets = when (target) {
                     "home" -> listOf("walhero_home_video.mp4")
                     "lock" -> listOf("walhero_lock_video.mp4")
-                    else -> listOf("walhero_home_video.mp4", "walhero_lock_video.mp4")
+                    else -> listOf("walhero_active_video.mp4") // "both" writes to walhero_active_video.mp4
                 }
 
-                // Copy to a temporary file in cache first to prevent any lockups during concurrent copying
-                val tempFile = File(context.cacheDir, "temp_selected_video.mp4")
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    tempFile.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
+                // Copy to each target file
+                for (targetName in targets) {
+                    val destFile = File(context.filesDir, targetName)
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        destFile.outputStream().use { outputStream ->
+                            inputStream.copyTo(outputStream)
+                        }
                     }
                 }
+                
+                // If they chose specific targets or both, clean up conflicting old files
+                if (target == "both") {
+                    val homeFile = File(context.filesDir, "walhero_home_video.mp4")
+                    if (homeFile.exists()) homeFile.delete()
+                    val lockFile = File(context.filesDir, "walhero_lock_video.mp4")
+                    if (lockFile.exists()) lockFile.delete()
+                }
 
-                if (tempFile.exists() && tempFile.length() > 0) {
-                    // Copy to each target file
-                    for (targetName in targets) {
-                        val destFile = File(context.filesDir, targetName)
-                        tempFile.copyTo(destFile, overwrite = true)
-                    }
-                    
-                    // If they chose specific targets, clean up the other ones or legacy files as appropriate
-                    if (target == "both") {
-                        val legacyFile = File(context.filesDir, "walhero_active_video.mp4")
-                        if (legacyFile.exists()) {
-                            legacyFile.delete()
-                        }
-                    } else if (target == "home") {
-                        // If they set specifically home, we can delete the legacy general file
-                        val legacyFile = File(context.filesDir, "walhero_active_video.mp4")
-                        if (legacyFile.exists()) {
-                            legacyFile.delete()
-                        }
-                    } else if (target == "lock") {
-                        val legacyFile = File(context.filesDir, "walhero_active_video.mp4")
-                        if (legacyFile.exists()) {
-                            legacyFile.delete()
-                        }
-                    }
-
-                    tempFile.delete()
-
-                    val sizeStr = getFileSizeString(File(context.filesDir, targets[0]).length())
+                val primaryFile = File(context.filesDir, targets[0])
+                if (primaryFile.exists() && primaryFile.length() > 0) {
+                    val sizeStr = getFileSizeString(primaryFile.length())
                     
                     // Save info to SharedPreferences
                     val prefs = context.getSharedPreferences("walhero_prefs", Context.MODE_PRIVATE)

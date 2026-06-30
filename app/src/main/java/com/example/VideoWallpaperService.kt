@@ -76,20 +76,38 @@ class VideoWallpaperService : WallpaperService() {
             return WallpaperManager.FLAG_SYSTEM
         }
 
+        private fun getPlayableVideoFile(isLockScreen: Boolean): File? {
+            val homeFile = File(filesDir, "walhero_home_video.mp4")
+            val lockFile = File(filesDir, "walhero_lock_video.mp4")
+            val activeFile = File(filesDir, "walhero_active_video.mp4")
+
+            Log.d("VideoWallpaperService", "getPlayableVideoFile - isLockScreen: $isLockScreen, home: ${homeFile.exists()}, lock: ${lockFile.exists()}, active: ${activeFile.exists()}")
+
+            return if (isLockScreen) {
+                when {
+                    lockFile.exists() && lockFile.length() > 0 -> lockFile
+                    activeFile.exists() && activeFile.length() > 0 -> activeFile
+                    homeFile.exists() && homeFile.length() > 0 -> homeFile
+                    else -> null
+                }
+            } else {
+                when {
+                    homeFile.exists() && homeFile.length() > 0 -> homeFile
+                    activeFile.exists() && activeFile.length() > 0 -> activeFile
+                    lockFile.exists() && lockFile.length() > 0 -> lockFile
+                    else -> null
+                }
+            }
+        }
+
         private fun playVideo() {
             val flags = getEngineWallpaperFlags()
             val isLockScreen = (flags and WallpaperManager.FLAG_LOCK) != 0
 
-            val videoFile = if (isLockScreen) {
-                val lockFile = File(filesDir, "walhero_lock_video.mp4")
-                if (lockFile.exists()) lockFile else File(filesDir, "walhero_active_video.mp4")
-            } else {
-                val homeFile = File(filesDir, "walhero_home_video.mp4")
-                if (homeFile.exists()) homeFile else File(filesDir, "walhero_active_video.mp4")
-            }
+            val videoFile = getPlayableVideoFile(isLockScreen)
 
-            if (!videoFile.exists()) {
-                Log.w("VideoWallpaperService", "No active video file exists for targets (isLockScreen=$isLockScreen).")
+            if (videoFile == null || !videoFile.exists()) {
+                Log.w("VideoWallpaperService", "No playable video file exists (isLockScreen=$isLockScreen).")
                 return
             }
 
@@ -98,7 +116,12 @@ class VideoWallpaperService : WallpaperService() {
                     val holder = surfaceHolder ?: return
                     mediaPlayer = MediaPlayer().apply {
                         setSurface(holder.surface)
-                        setDataSource(videoFile.absolutePath)
+                        
+                        // Use FileInputStream for maximum compatibility and to bypass path restrictions
+                        val fis = java.io.FileInputStream(videoFile)
+                        setDataSource(fis.fd)
+                        fis.close()
+                        
                         isLooping = true
                         
                         // Set volume based on preference
@@ -115,12 +138,19 @@ class VideoWallpaperService : WallpaperService() {
                         prepare()
                         start()
                     }
+                    Log.d("VideoWallpaperService", "MediaPlayer started playing: ${videoFile.name}")
                 } catch (e: Exception) {
                     Log.e("VideoWallpaperService", "Error preparing MediaPlayer", e)
                     releasePlayer()
                 }
             } else {
-                mediaPlayer?.start()
+                try {
+                    mediaPlayer?.start()
+                } catch (e: Exception) {
+                    Log.e("VideoWallpaperService", "Error restarting MediaPlayer", e)
+                    releasePlayer()
+                    playVideo()
+                }
             }
         }
 
