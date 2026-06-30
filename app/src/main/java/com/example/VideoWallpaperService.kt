@@ -117,10 +117,7 @@ class VideoWallpaperService : WallpaperService() {
                     mediaPlayer = MediaPlayer().apply {
                         setSurface(holder.surface)
                         
-                        // Use FileInputStream for maximum compatibility and to bypass path restrictions
-                        val fis = java.io.FileInputStream(videoFile)
-                        setDataSource(fis.fd)
-                        fis.close()
+                        setDataSource(videoFile.absolutePath)
                         
                         isLooping = true
                         
